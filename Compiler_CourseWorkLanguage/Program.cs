@@ -13,7 +13,7 @@ namespace Compiler_CourseWorkLanguage
 
 			tabs.Push (0);
 			List<string> tokens = new List<string> ();
-			tokens.Add ("INDENT");
+			tokens.Add (CodeParser.INDENT);
 			foreach (var line in lines) {
 				int tabsCount = 0;
 				for (int i = 0; i < line.Length; i++) {
@@ -23,6 +23,13 @@ namespace Compiler_CourseWorkLanguage
 						break;
 				}
 				string slice = line.Substring (tabsCount);
+				bool empty = true;
+				for (int i = 0; i < slice.Length && empty; i++) {
+					if (slice [i] != ' ' || slice [i] != '\t')
+						empty = false;
+				}
+				if (empty)
+					continue;
 				bool indent = false;
 				if (tabs.Count > 0 && tabsCount == tabs.Peek () + 1) {
 					indent = true;
@@ -30,28 +37,29 @@ namespace Compiler_CourseWorkLanguage
 				} else if (tabs.Count > 0) {
 					while (tabs.Count > 0 && tabsCount < tabs.Peek()) {
 						tabs.Pop ();
-						tokens.Add ("DEDENT");
+						tokens.Add (CodeParser.DEDENT);
 					}
 				} else if (tabsCount != tabs.Peek ()) {
 					throw new Exception ("Wrong tabulation");
 				}
 				var lineTokens = slice.Split(' ');
 				if (indent)
-					tokens.Add ("INDENT");
+					tokens.Add (CodeParser.INDENT);
 				foreach (var lineToken in lineTokens)
-					tokens.Add (lineToken);
+					if (lineToken.Length > 0)
+						tokens.Add (lineToken);
 
 
 			}
 			while (tabs.Count > 0) {
 				tabs.Pop ();
-				tokens.Add ("DEDENT");
+				tokens.Add (CodeParser.DEDENT);
 			}
 			string text = string.Join (" ", tokens);
 	
 			Console.WriteLine (text);		
 			Console.WriteLine ("---");
-			var list = Parser.ParseText (text);
+			var list = CodeParser.ParseText (text);
 			foreach (var e in list) {
 				ShowDef (e);
 			}
@@ -77,9 +85,16 @@ namespace Compiler_CourseWorkLanguage
 				FuncDefinition vd = d as FuncDefinition;
 				for (int i = 0; i < offset; i++)
 					Console.Write (" ");
-				Console.WriteLine ("func " + vd.Name + " " + vd.Args);
-
-				Console.WriteLine (vd.Block);
+				Console.Write ("func " + vd.Name + " " + vd.ReturnType + " args:   ");
+				foreach ( var arg in vd.Args)
+					Console.Write (arg.Name + " of " + arg.Type + "   ");
+				Console.WriteLine ();
+				foreach (var stmt in vd.Block) {
+					for (int i = 0; i < offset + 1; i++)
+					Console.Write (" ");
+					Console.WriteLine (stmt.ToString());
+				}
+					
 			}
 		}
 	}
