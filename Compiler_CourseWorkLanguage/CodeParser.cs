@@ -2,6 +2,7 @@
 using Sprache;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace Compiler_CourseWorkLanguage
 {
@@ -109,6 +110,9 @@ namespace Compiler_CourseWorkLanguage
 			from rwhite in Parse.WhiteSpace.Many()
 			select string.Concat (first, rest);
 		
+		static readonly Parser<Expression> MemberID =
+			from ids in Id.DelimitedBy (Parse.Char ('.'))
+			select new Member (){ IDs = new List<string> (ids) };
 		static readonly Parser<string> OfType =
 			from ofWord in Of
 			from ofClass in Id
@@ -139,10 +143,13 @@ namespace Compiler_CourseWorkLanguage
 			Name = name, Args = new List<VarDefinition>(paramsList.GetOrElse(new List<VarDefinition>())),
 			Block = block
 		};
-
+		static readonly Parser<Expression> VarAssign = 
+			from member in MemberID
+			from expr in AssignOp
+			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
-			from definitions in VarDef.Many()
+			from definitions in VarDef.Or<Statement>(VarAssign).Many()
 			from dedent in Dedent
 			select new List<Statement>(definitions);
 
@@ -200,18 +207,19 @@ namespace Compiler_CourseWorkLanguage
 	
 
 	}
-
-	public class Result<T>
+	public class Member : Expression
 	{
-		public T Content { get; internal set; }
-		public string Other { get; internal set; }
-		public Result(T content, string other)
+		static StringBuilder builder = new StringBuilder();
+		public List<string> IDs;
+		public override string ToString ()
 		{
-			Content = content;
-			Other = other;
+			builder.Clear ();
+			for (int i = 0; i < IDs.Count; i++)
+				builder.Append (IDs [i]).Append (".");
+			return builder.ToString ();
 		}
-
 	}
+
 	public class ClassDefinition : Definition
 	{
 		public string Inherit;
@@ -244,14 +252,25 @@ namespace Compiler_CourseWorkLanguage
 		public Expression DefaultExpression;
 	}
 
+	public class VarAssignExpression : Expression
+	{
+		public Member Member;
+		public Expression DefaultExpression;
+		public override string ToString ()
+		{
+			return String.Format ("{0} = {1}", Member, DefaultExpression);
+		}
+	}
+
 	public class Statement
 	{
 	}
 
-	public class Expression
+	public class Expression : Statement
 	{
-		
+
 	}
+
 
 	public class BinaryExpr : Expression
 	{

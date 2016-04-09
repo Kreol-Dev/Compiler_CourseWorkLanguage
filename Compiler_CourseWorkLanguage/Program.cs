@@ -72,7 +72,7 @@ namespace Compiler_CourseWorkLanguage
 				VarDefinition vd = d as VarDefinition;
 				for (int i = 0; i < offset; i++)
 					Console.Write (" ");
-				Console.WriteLine ("var " + vd.Type + " " + vd.Name);
+				Console.WriteLine (vd.ToString());
 			} else if (d is ClassDefinition) {
 				ClassDefinition vd = d as ClassDefinition;
 				for (int i = 0; i < offset; i++)
