@@ -25,7 +25,29 @@ namespace Compiler_CourseWorkLanguage
 			from word in Parse.String ("-")
 			from rwhite in Parse.WhiteSpace.Many ()
 			select UExprType.Negate;
+		
+		static readonly Parser<ExprType> And =
+			from lwhite in Parse.WhiteSpace.Many ()
+			from word in Parse.String ("and")
+			from rwhite in Parse.WhiteSpace.Many ()
+			select ExprType.And;
 
+		static readonly Parser<ExprType> Or =
+			from lwhite in Parse.WhiteSpace.Many ()
+			from word in Parse.String ("or")
+			from rwhite in Parse.WhiteSpace.Many ()
+			select ExprType.Or;
+		static readonly Parser<ExprType> Equal =
+			from lwhite in Parse.WhiteSpace.Many ()
+			from word in Parse.String ("==")
+			from rwhite in Parse.WhiteSpace.Many ()
+			select ExprType.Equal;
+		
+		static readonly Parser<UExprType> Not =
+			from lwhite in Parse.WhiteSpace.Many ()
+			from word in Parse.String ("not")
+			from rwhite in Parse.WhiteSpace.Many ()
+			select UExprType.Not;
 		static readonly Parser<ExprType> Mul =
 			from lwhite in Parse.WhiteSpace.Many ()
 			from word in Parse.String ("*")
@@ -56,7 +78,7 @@ namespace Compiler_CourseWorkLanguage
 
 		static readonly Parser<Expression> Number =
 			from lwhite in Parse.WhiteSpace.Many ()
-			from word in Parse.Decimal.Text()
+			from word in Parse.Number.Text()
 			from rwhite in Parse.WhiteSpace.Many ()
 			select new NumberExpression(){Value = float.Parse(word)};
 		static readonly Parser<Expression> String =
@@ -104,18 +126,28 @@ namespace Compiler_CourseWorkLanguage
 			from rwhite in Parse.WhiteSpace.Many ()
 			select word;
 		static readonly Parser<string> Id =
-			from lwhite in Parse.WhiteSpace.Many()
+			//from lwhite in Parse.WhiteSpace.Many()
 			from first in Parse.Letter
 			from rest in Parse.LetterOrDigit.Many ().Text()
-			from rwhite in Parse.WhiteSpace.Many()
+			//from rwhite in Parse.WhiteSpace.Many()
 			select string.Concat (first, rest);
 		
-		static readonly Parser<Expression> MemberID =
-			from ids in Id.DelimitedBy (Parse.Char ('.'))
-			select new Member (){ IDs = new List<string> (ids) };
+		static readonly Parser<Member> MemberID =
+			from ids in Id.XDelimitedBy(Parse.Char ('.'))
+			from args in ArgsList.Optional()
+			select new Member (){ IDs = new List<string> (ids), CallArgs = args.GetOrElse(null) };
+
+		static readonly Parser<List<Expression>> ArgsList =
+			from lbrace in LBrace
+			from exprs in Parse.Ref(()=>Expr).DelimitedBy (Parse.String (",").Token()).Optional()
+			from rbrace in RBrace
+				select new List<Expression> (exprs.GetOrDefault());
+//				.XOr(from lbrace in LBrace
+//				from rbrace in RBrace
+//				select new List<Expression>());
 		static readonly Parser<string> OfType =
 			from ofWord in Of
-			from ofClass in Id
+			from ofClass in Id.Token()
 			select ofClass;
 		
 		static readonly Parser<List<Definition>> DefBlock =
@@ -126,13 +158,13 @@ namespace Compiler_CourseWorkLanguage
 
 		static readonly Parser<Definition> ClassDef =
 			from classWord in Class
-			from name in Id
+			from name in Id.Token()
 			from inheritDef in OfType.Optional()
 			from block in DefBlock
 			select new ClassDefinition(){Name = name, Inherit = inheritDef.GetOrElse("None"), Block = block};
 		
 		static readonly Parser<Definition> FuncDef =
-			from name in Id
+			from name in Id.Token()
 			from lBrace in LBrace
 			from paramsList in VarDef.Select( d => d as VarDefinition).Many().Optional()
 			from rBrace in RBrace
@@ -147,6 +179,7 @@ namespace Compiler_CourseWorkLanguage
 			from member in MemberID
 			from expr in AssignOp
 			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
+		
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
 			from definitions in VarDef.Or<Statement>(VarAssign).Many()
@@ -157,47 +190,49 @@ namespace Compiler_CourseWorkLanguage
 			from lwhite in Parse.WhiteSpace.Many ()
 			from word in Parse.String ("=")
 			from rwhite in Parse.WhiteSpace.Many ()
-			from expr in AnyExpr
+			from expr in Expr
 			select expr;
-		static readonly Parser<Expression> Const =
-			from expr in Number.Or(String).Or(True).Or(False).Or(Null)
-			select expr;
-
-		static readonly Parser<Expression> AnyExpr = 
-			from expr in Parse.Ref(() => Expr).Or(Parse.Ref(() => TermExpr)).Or(Parse.Ref(() => NegateExpr))
-			select expr;
-		
-		static readonly Parser<Expression> FactorExpr = 
-			(from lparen in LBrace
-				from expr in Parse.Ref(() => Expr).Or(Parse.Ref(() => TermExpr)).Or(Parse.Ref(() => NegateExpr))
-				from rparen in RBrace
-				select new BracedExpression(){InExpr = expr})
-				.XOr(Const);
-				//.XOr(Function);
-
-		static readonly Parser<Expression> NegateExpr = 
-			(from sign in Negate
-				from factor in FactorExpr
-				select new UnaryExpr(){Type = UExprType.Negate, Expr = factor}
-			).XOr (FactorExpr);
-
-		static readonly Parser<Expression> TermExpr =
-			from lexpr in NegateExpr.Or(Parse.Ref(() => TermExpr))
-			from operand in Mul.Or(Div)
-			from rexpr in Parse.Ref(() => TermExpr).Or(FactorExpr)
-			select new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = operand};
-		
-		static readonly Parser<Expression> Expr =
-			from lexpr in Const.Or(TermExpr).Or(FactorExpr).Or(NegateExpr).Or(Parse.Ref(() => Expr))
-			from operand in Add.Or(Sub)
-			from rexpr in Parse.Ref(() => Expr).Or(TermExpr).Or(FactorExpr)
-			select new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = operand};
 		
 		static readonly Parser<Definition> VarDef =
-			from type in Id
-			from name in Id
+			from type in Id.Token()
+			from name in Id.Token()
 			from assign in AssignOp.Optional()
 			select new VarDefinition(){Name = name, Type = type, DefaultExpression = assign.GetOrElse(null)};
+		
+		static readonly Parser<Expression> AssignExpr =
+			from member in MemberID
+			from expr in AssignOp
+			select new VarAssignExpression (){ Member = member, DefaultExpression = expr };
+		static readonly Parser<Expression> Expr = 
+			Parse.Ref(() => OrOp).XOr (Parse.Ref(() => AndOp)).
+			XOr (Parse.Ref(() => EqualOp)).XOr (Parse.Ref(() => AdditOp)).
+			XOr (Parse.Ref(() => MultOp)).XOr (Parse.Ref(() => Factor));
+
+		static readonly Parser<Expression> MultOp = Parse.ChainOperator (Div.Or (Mul), Parse.Ref(() => Operand), (op, lexpr, rexpr) => new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = op});
+		static readonly Parser<Expression> AdditOp = Parse.ChainOperator (Add.Or (Sub), MultOp, (op, lexpr, rexpr) => new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = op});
+		static readonly Parser<Expression> EqualOp = Parse.ChainOperator (Equal, AdditOp, (op, lexpr, rexpr) => new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = op});
+		static readonly Parser<Expression> AndOp = Parse.ChainOperator (And, EqualOp, (op, lexpr, rexpr) => new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = op});
+		static readonly Parser<Expression> OrOp = Parse.ChainOperator (Or, AndOp, (op, lexpr, rexpr) => new BinaryExpr(){LExpr = lexpr, RExpr = rexpr, Type = op});
+
+		static readonly Parser<Expression> Factor =
+			(from lparen in LBrace
+				from expr in Parse.Ref(() => Expr)
+				from rparen in RBrace
+				select new BracedExpression(){InExpr = expr})
+				.XOr(Parse.Ref(() => Const));
+		static readonly Parser<Expression> Const =
+			from expr in Number.XOr(String).XOr(True).XOr(False).XOr(Null)
+				//.XOr(Parse.Ref(() => FuncCall))
+				.XOr(Parse.Ref(()=>MemberID))
+			select expr;
+		static readonly Parser<Expression> Operand =
+			(from sign in Negate
+				from factor in Factor
+					select new UnaryExpr(){Type = UExprType.Negate, Expr = factor}
+			).XOr(from sign in Not
+				from factor in Factor
+				select new UnaryExpr(){Type = UExprType.Not, Expr = factor}
+			).XOr(Factor).Token();
 		
 		public static List<Definition> ParseText(string text)
 		{
@@ -207,15 +242,26 @@ namespace Compiler_CourseWorkLanguage
 	
 
 	}
+	public class FuncCall : Expression
+	{
+		public Member Member;
+		public List<Expression> Args;
+	}
 	public class Member : Expression
 	{
-		static StringBuilder builder = new StringBuilder();
+		StringBuilder builder = new StringBuilder();
 		public List<string> IDs;
+		public List<Expression> CallArgs;
 		public override string ToString ()
 		{
 			builder.Clear ();
 			for (int i = 0; i < IDs.Count; i++)
 				builder.Append (IDs [i]).Append (".");
+			if (CallArgs != null) {
+				builder.Append (" called with :");
+				for (int i = 0; i < CallArgs.Count; i++)
+					builder.Append (CallArgs [i]).Append ("     ");
+			}
 			return builder.ToString ();
 		}
 	}
@@ -288,6 +334,12 @@ namespace Compiler_CourseWorkLanguage
 				return string.Format("{0} / {1}", LExpr, RExpr);
 			case ExprType.Mul:
 				return string.Format("{0} * {1}", LExpr, RExpr);
+			case ExprType.And:
+				return string.Format("{0} and {1}", LExpr, RExpr);
+			case ExprType.Or:
+				return string.Format("{0} or {1}", LExpr, RExpr);			
+			case ExprType.Equal:
+				return string.Format("{0} == {1}", LExpr, RExpr);
 			}
 			return "null_bin_expr";
 		}
@@ -308,11 +360,15 @@ namespace Compiler_CourseWorkLanguage
 		Add,
 		Sub,
 		Mul,
-		Div
+		Div,
+		And,
+		Or,
+		Equal
 	}
 	public enum UExprType
 	{
-		Negate
+		Negate,
+		Not
 	}
 
 	public class BoolExpression : Expression
