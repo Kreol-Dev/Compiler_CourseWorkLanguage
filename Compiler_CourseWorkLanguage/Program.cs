@@ -68,6 +68,14 @@ namespace Compiler_CourseWorkLanguage
 
 		static void ShowDef(Definition d, int offset = 0)
 		{
+			if (d is ProtectedDefinition) {
+				ProtectedDefinition def = d as ProtectedDefinition;
+				if (def.IsPublic)
+					Console.Write ("public ");
+				else
+					Console.Write ("private ");
+				ShowDef (def.Definition);
+			}
 			if (d is VarDefinition) {
 				VarDefinition vd = d as VarDefinition;
 				for (int i = 0; i < offset; i++)

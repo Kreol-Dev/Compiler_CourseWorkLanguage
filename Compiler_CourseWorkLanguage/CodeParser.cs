@@ -156,10 +156,18 @@ namespace Compiler_CourseWorkLanguage
 		
 		static readonly Parser<List<Definition>> DefBlock =
 			from indent in Indent
-			from definitions in ClassDef.Or(VarDef).Or(FuncDef).Many()
+			from definitions in Parse.Ref(()=>Def).Many()
 			from dedent in Dedent
 			select new List<Definition>(definitions);
 
+		static readonly Parser<ProtectedDefinition> Def = 
+			(from priv in Parse.String ("private").Token ()
+				from def in Parse.Ref(()=>ClassDef).Or (Parse.Ref(()=>VarDef)).Or (Parse.Ref(()=>FuncDef))
+			 select new ProtectedDefinition (){ IsPublic = false, Definition = def })
+				.XOr (from def in Parse.Ref(()=>ClassDef).Or (Parse.Ref(()=>VarDef)).Or (Parse.Ref(()=>FuncDef))
+			      select new ProtectedDefinition (){ IsPublic = true, Definition = def });
+
+		
 		static readonly Parser<Definition> ClassDef =
 			from classWord in Class
 			from name in Id.Token()
@@ -179,14 +187,14 @@ namespace Compiler_CourseWorkLanguage
 			Name = name, Args = new List<VarDefinition>(paramsList.GetOrElse(new List<VarDefinition>())),
 			Block = block
 		};
-		static readonly Parser<Expression> VarAssign = 
-			from member in MemberID
-			from expr in AssignOp
-			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
+//		static readonly Parser<Expression> VarAssign = 
+//			from member in MemberID
+//			from expr in AssignOp
+//			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
 		
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
-			from definitions in IfThen.Or(WhileLoop).Or(ForLoop).Or(Return).Or<Statement>(VarAssign).Or(VarDef).Many()
+			from definitions in IfThen.Or(WhileLoop).Or(ForLoop).Or(Return).Or<Statement>(AssignExpr).Or(VarDef).Many()
 			from dedent in Dedent
 			select new List<Statement>(definitions);
 
@@ -283,6 +291,17 @@ namespace Compiler_CourseWorkLanguage
 
 	
 
+	}
+	public class ProtectedDefinition : Definition
+	{
+		public bool IsPublic;
+		public Definition Definition;
+		public override string ToString ()
+		{
+			if (IsPublic)
+				return "public " + Definition.ToString ();
+			return Definition.ToString ();
+		}
 	}
 	public class ReturnStatement : Statement
 	{
