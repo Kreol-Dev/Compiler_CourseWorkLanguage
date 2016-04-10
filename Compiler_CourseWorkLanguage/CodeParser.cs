@@ -139,9 +139,13 @@ namespace Compiler_CourseWorkLanguage
 
 		static readonly Parser<List<Expression>> ArgsList =
 			from lbrace in LBrace
-			from exprs in Parse.Ref(()=>Expr).DelimitedBy (Parse.String (",").Token()).Optional()
+			//from exprs in Parse.Ref(()=>Expr).DelimitedBy (Parse.String (",").Token())
+			from exprs in ExprList.Optional()
 			from rbrace in RBrace
-				select new List<Expression> (exprs.GetOrDefault());
+			select new List<Expression> (exprs.GetOrElse(null));
+		static readonly Parser<List<Expression>> ExprList = 
+			from exprs in Parse.Ref (() => Expr).DelimitedBy (Parse.String (",").Token ())
+			select new List<Expression> (exprs);
 //				.XOr(from lbrace in LBrace
 //				from rbrace in RBrace
 //				select new List<Expression>());
@@ -182,7 +186,7 @@ namespace Compiler_CourseWorkLanguage
 		
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
-			from definitions in VarDef.Or<Statement>(VarAssign).Many()
+			from definitions in IfThen.Or(WhileLoop).Or(ForLoop).Or(Return).Or<Statement>(VarAssign).Or(VarDef).Many()
 			from dedent in Dedent
 			select new List<Statement>(definitions);
 
@@ -233,7 +237,45 @@ namespace Compiler_CourseWorkLanguage
 				from factor in Factor
 				select new UnaryExpr(){Type = UExprType.Not, Expr = factor}
 			).XOr(Factor).Token();
-		
+
+		static readonly Parser<ElifStatement> Elif = 
+			from elifWord in Parse.String ("elif").Token ()
+			from ifExpr in Expr
+			from elifBlock in FuncBlock
+			select new ElifStatement (){ IfExpr = ifExpr, ThenBlock = elifBlock };
+		static readonly Parser<List<ElifStatement>> Elifs =
+			from elifs in Elif.Many ()
+			select new List<ElifStatement> (elifs);
+		static readonly Parser<List<Statement>> Else =
+			from elseWord in Parse.String("else").Token()
+			from elseBlock in FuncBlock
+			select elseBlock;
+		static readonly Parser<Statement> IfThen =
+			from ifWord in Parse.String ("if").Token ()
+			from ifExpr in Expr
+			from ifBlock in FuncBlock
+			from elifs in Elifs
+			from elseThen in Else.Optional()
+				select new IfThenStatement (){ IfExpr = ifExpr, ThenBlock = ifBlock, Elifs = elifs, ElseBlock = elseThen.GetOrElse(null)};
+
+		static readonly Parser<Statement> WhileLoop = 
+			from whileWord in Parse.String ("while").Token ()
+			from ifExpr in Expr
+			from ifBlock in FuncBlock
+			select new WhileStatement (){Expr = ifExpr, Block = ifBlock };
+
+		static readonly Parser<Statement> ForLoop = 
+			from whileWord in Parse.String ("foreach").Token ()
+			from id in Id
+			from inWord in Parse.String("in").Token()
+			from expr in Expr
+			from block in FuncBlock
+			select new ForStatement (){ LoopId = id, InExpr = expr, Block = block };
+
+		static readonly Parser<Statement> Return =
+			from retWord in Parse.String ("return").Token ()
+			from expr in Expr
+			select new ReturnStatement (){ Expression = expr };
 		public static List<Definition> ParseText(string text)
 		{
 			return DefBlock.Parse (text);
@@ -241,6 +283,91 @@ namespace Compiler_CourseWorkLanguage
 
 	
 
+	}
+	public class ReturnStatement : Statement
+	{
+		public Expression Expression;
+		public override string ToString ()
+		{
+			return "Return + " + Expression.ToString ();
+		}
+	}
+	public class IfThenStatement : Statement
+	{
+		public Expression IfExpr;
+		public List<Statement> ThenBlock;
+		public List<ElifStatement> Elifs;
+		public List<Statement> ElseBlock;
+		public override string ToString ()
+		{
+			StringBuilder builder = new StringBuilder (200);
+			builder.Append ("if ");
+			builder.Append (IfExpr);
+			builder.Append ("then");
+			builder.Append (Environment.NewLine);
+			foreach (var stmt in ThenBlock)
+				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			foreach (var elif in Elifs)
+				builder.Append (elif);
+			if (ElseBlock == null)
+				return builder.ToString ();
+			builder.Append ("else").Append(Environment.NewLine);
+			foreach (var stmt in ElseBlock)
+				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			return builder.ToString ();
+		}
+	}
+	public class WhileStatement : Statement
+	{
+		public Expression Expr;
+		public List<Statement> Block;
+		public override string ToString ()
+		{
+			StringBuilder builder = new StringBuilder (200);
+			builder.Append ("while ");
+			builder.Append (Expr);
+			builder.Append (" then");
+			builder.Append (Environment.NewLine);
+			foreach (var stmt in Block)
+				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			return builder.ToString ();
+		}
+	}
+	public class ForStatement : Statement
+	{
+		public string LoopId;
+		public Expression InExpr;
+		public List<Statement> Block;
+		public override string ToString ()
+		{
+			StringBuilder builder = new StringBuilder (200);
+			builder.Append ("for each ");
+			builder.Append (LoopId);
+			builder.Append (" in ");
+			builder.Append (InExpr);
+			builder.Append (" do");
+			builder.Append (Environment.NewLine);
+			foreach (var stmt in Block)
+				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			return builder.ToString ();
+		}
+
+	}
+	public class ElifStatement : Statement
+	{
+		public Expression IfExpr;
+		public List<Statement> ThenBlock;
+		public override string ToString ()
+		{
+			StringBuilder builder = new StringBuilder (100);
+			builder.Append ("elif ");
+			builder.Append (IfExpr);
+			builder.Append ("then");
+			builder.Append (Environment.NewLine);
+			foreach (var stmt in ThenBlock)
+				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			return builder.ToString ();
+		}
 	}
 	public class FuncCall : Expression
 	{
