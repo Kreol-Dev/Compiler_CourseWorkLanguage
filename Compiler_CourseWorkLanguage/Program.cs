@@ -1,6 +1,13 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.CodeDom.Compiler;
+using ICSharpCode.Decompiler;
+using Mono.Cecil;
+using ICSharpCode.Decompiler.Ast;
+using System.Linq;
+using System.CodeDom;
+using Microsoft.CSharp;
 
 namespace Compiler_CourseWorkLanguage
 {
@@ -14,7 +21,24 @@ namespace Compiler_CourseWorkLanguage
 			tabs.Push (0);
 			List<string> tokens = new List<string> ();
 			tokens.Add (CodeParser.INDENT);
-			foreach (var line in lines) {
+			foreach (var unprepLine in lines) {
+				string line = unprepLine;
+//				bool allSpace = true;
+//				int lastBraceOpen = -1;
+//				for (int i = 0; i < unprepLine.Length; i++) {
+//					if (unprepLine [i] == '(') {
+//						allSpace = true;
+//						lastBraceOpen = i;
+//					}
+//					else if (unprepLine [i] == ')') {
+//						
+//							if (allSpace == true) {
+//								line = String.Concat (unprepLine.Substring (0, i), " void " ,unprepLine.Substring (i, unprepLine.Length - i));
+//							}
+//					} else if (unprepLine [i] != ' ')
+//						allSpace = false;
+//				}
+
 				int tabsCount = 0;
 				for (int i = 0; i < line.Length; i++) {
 					if (line [i] == '\t')
@@ -63,6 +87,31 @@ namespace Compiler_CourseWorkLanguage
 			foreach (var e in list) {
 				ShowDef (e);
 			}
+
+			DomGenerator gen = new DomGenerator (new BasicEnv());
+			var genClass = gen.Define (list);
+			CodeCompileUnit pUnit = new CodeCompileUnit();
+//			foreach(string sUsing in typeof(BasicEnv)) pNamespace.Imports.Add(new
+//				CodeNamespaceImport(sUsing));
+			CodeNamespace pNamespace = new CodeNamespace("Scripts");
+			pNamespace.Types.Add(genClass);
+			pUnit.Namespaces.Add(pNamespace);
+
+			CompilerParameters pParams = new CompilerParameters ();
+			pParams.GenerateInMemory = true;
+
+			CodeDomProvider provider = new CSharpCodeProvider ();
+			var writer = Console.Out;
+			var sourcegen = provider.CreateGenerator (writer);
+			sourcegen.GenerateCodeFromCompileUnit (pUnit, writer, new CodeGeneratorOptions ());
+			CompilerResults results = provider.CompileAssemblyFromDom (pParams, pUnit);
+
+			if (results.Errors != null && results.Errors.Count > 0) {
+				foreach ( var err in results.Errors)
+					Console.WriteLine("Error: " + err);
+			
+			}
+
 			Console.ReadLine ();
 		}
 

@@ -3,6 +3,8 @@ using Sprache;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Mono.Cecil.Cil;
+using Mono.Cecil;
 
 namespace Compiler_CourseWorkLanguage
 {
@@ -140,12 +142,12 @@ namespace Compiler_CourseWorkLanguage
 		static readonly Parser<List<Expression>> ArgsList =
 			from lbrace in LBrace
 			//from exprs in Parse.Ref(()=>Expr).DelimitedBy (Parse.String (",").Token())
-			from exprs in ExprList.Optional()
+			from exprs in ExprList
 			from rbrace in RBrace
-			select new List<Expression> (exprs.GetOrElse(null));
+			select exprs;
 		static readonly Parser<List<Expression>> ExprList = 
-			from exprs in Parse.Ref (() => Expr).DelimitedBy (Parse.String (",").Token ())
-			select new List<Expression> (exprs);
+			from exprs in Parse.Ref (() => Expr).DelimitedBy (Parse.String (",").Token ()).Optional()
+			select new List<Expression> (exprs.GetOrElse(null));
 //				.XOr(from lbrace in LBrace
 //				from rbrace in RBrace
 //				select new List<Expression>());
@@ -194,7 +196,7 @@ namespace Compiler_CourseWorkLanguage
 		
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
-			from definitions in IfThen.Or(WhileLoop).Or(ForLoop).Or(Return).Or<Statement>(AssignExpr).Or(VarDef).Many()
+			from definitions in IfThen.Or(WhileLoop).Or(ForLoop).Or(Return).Or<Statement>(AssignExpr).Or(VarDef).Or<Statement>(MemberID).Many()
 			from dedent in Dedent
 			select new List<Statement>(definitions);
 
@@ -308,7 +310,7 @@ namespace Compiler_CourseWorkLanguage
 		public Expression Expression;
 		public override string ToString ()
 		{
-			return "Return + " + Expression.ToString ();
+			return "return " + Expression.ToString () + ";";
 		}
 	}
 	public class IfThenStatement : Statement
@@ -320,20 +322,24 @@ namespace Compiler_CourseWorkLanguage
 		public override string ToString ()
 		{
 			StringBuilder builder = new StringBuilder (200);
-			builder.Append ("if ");
+			builder.Append ("if (");
 			builder.Append (IfExpr);
-			builder.Append ("then");
+			builder.Append (") {");
 			builder.Append (Environment.NewLine);
 			foreach (var stmt in ThenBlock)
 				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			builder.Append ("}");
 			foreach (var elif in Elifs)
 				builder.Append (elif);
 			if (ElseBlock == null)
 				return builder.ToString ();
-			builder.Append ("else").Append(Environment.NewLine);
+			builder.Append ("else {").Append(Environment.NewLine);
 			foreach (var stmt in ElseBlock)
 				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+
+			builder.Append ("}");
 			return builder.ToString ();
+
 		}
 	}
 	public class WhileStatement : Statement
@@ -343,14 +349,16 @@ namespace Compiler_CourseWorkLanguage
 		public override string ToString ()
 		{
 			StringBuilder builder = new StringBuilder (200);
-			builder.Append ("while ");
+			builder.Append ("while ( ");
 			builder.Append (Expr);
-			builder.Append (" then");
+			builder.Append (" ) {");
 			builder.Append (Environment.NewLine);
 			foreach (var stmt in Block)
 				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			builder.Append ("}");
 			return builder.ToString ();
 		}
+	
 	}
 	public class ForStatement : Statement
 	{
@@ -360,14 +368,15 @@ namespace Compiler_CourseWorkLanguage
 		public override string ToString ()
 		{
 			StringBuilder builder = new StringBuilder (200);
-			builder.Append ("for each ");
+			builder.Append ("foreach ( var ");
 			builder.Append (LoopId);
 			builder.Append (" in ");
 			builder.Append (InExpr);
-			builder.Append (" do");
+			builder.Append (") {");
 			builder.Append (Environment.NewLine);
 			foreach (var stmt in Block)
 				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			builder.Append ("}");
 			return builder.ToString ();
 		}
 
@@ -379,12 +388,13 @@ namespace Compiler_CourseWorkLanguage
 		public override string ToString ()
 		{
 			StringBuilder builder = new StringBuilder (100);
-			builder.Append ("elif ");
+			builder.Append ("else if ( ");
 			builder.Append (IfExpr);
-			builder.Append ("then");
+			builder.Append (") {");
 			builder.Append (Environment.NewLine);
 			foreach (var stmt in ThenBlock)
 				builder.Append("   ").Append (stmt).Append(Environment.NewLine);
+			builder.Append ("}");
 			return builder.ToString ();
 		}
 	}
@@ -392,6 +402,7 @@ namespace Compiler_CourseWorkLanguage
 	{
 		public Member Member;
 		public List<Expression> Args;
+
 	}
 	public class Member : Expression
 	{
@@ -401,15 +412,22 @@ namespace Compiler_CourseWorkLanguage
 		public override string ToString ()
 		{
 			builder.Clear ();
-			for (int i = 0; i < IDs.Count; i++)
+			for (int i = 0; i < IDs.Count - 1; i++)
 				builder.Append (IDs [i]).Append (".");
+			builder.Append (IDs [IDs.Count - 1]);
+			
 			if (CallArgs != null) {
-				builder.Append (" called with :");
-				for (int i = 0; i < CallArgs.Count; i++)
-					builder.Append (CallArgs [i]).Append ("     ");
+				if (!(CallArgs.Count == 1 && CallArgs [0] is Member && (CallArgs[0] as Member).IDs[0] == "void")) {
+					builder.Append (" (");
+					for (int i = 0; i < CallArgs.Count; i++)
+						builder.Append (CallArgs [i]).Append ("     ");
+					builder.Append (")");
+				}
 			}
 			return builder.ToString ();
 		}
+
+
 	}
 
 	public class ClassDefinition : Definition
@@ -427,6 +445,7 @@ namespace Compiler_CourseWorkLanguage
 	public class Definition : Statement
 	{
 		public string Name;
+	
 	}
 	public class VarDefinition : Definition
 	{
@@ -434,14 +453,19 @@ namespace Compiler_CourseWorkLanguage
 		public Expression DefaultExpression;
 		public override string ToString ()
 		{
-			return String.Format ("{0} {1} = {2}", Type, Name, DefaultExpression);
+			if (DefaultExpression == null)
+				return Name + ";";
+			return String.Format ("{0} = {1};", Name, DefaultExpression);
 		}
+
+
 	}
 
 	public class VarAssign : Statement
 	{
 		public string Name;
 		public Expression DefaultExpression;
+	
 	}
 
 	public class VarAssignExpression : Expression
@@ -450,17 +474,21 @@ namespace Compiler_CourseWorkLanguage
 		public Expression DefaultExpression;
 		public override string ToString ()
 		{
-			return String.Format ("{0} = {1}", Member, DefaultExpression);
+			if (DefaultExpression == null)
+				return Member.ToString() + ";";
+			return String.Format ("{0} = {1};", Member, DefaultExpression);
 		}
+
+	
 	}
 
-	public class Statement
+	public abstract class Statement
 	{
+		
 	}
 
-	public class Expression : Statement
+	public abstract class Expression : Statement
 	{
-
 	}
 
 
@@ -489,6 +517,8 @@ namespace Compiler_CourseWorkLanguage
 			}
 			return "null_bin_expr";
 		}
+
+
 	}
 
 	public class UnaryExpr : Expression
@@ -499,6 +529,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return "-" + Expr.ToString ();
 		}
+
+
 	}
 
 	public enum ExprType
@@ -524,6 +556,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return Value.ToString();
 		}
+
+
 	}
 
 	public class NumberExpression : Expression
@@ -533,6 +567,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return Value.ToString();
 		}
+
+
 	}
 
 	public class StringExpression : Expression
@@ -542,6 +578,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return Value;
 		}
+
+	
 	}
 
 	public class RefExpression : Expression
@@ -551,6 +589,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return Value;
 		}
+
+
 	}
 
 	public class BracedExpression : Expression
@@ -560,6 +600,8 @@ namespace Compiler_CourseWorkLanguage
 		{
 			return "(" + InExpr.ToString () + ")";
 		}
+
+
 	}
 
 }
