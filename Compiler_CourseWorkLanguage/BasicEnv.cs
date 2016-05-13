@@ -1,6 +1,7 @@
 ﻿using System;
+using Compiler_CourseWorkLanguage;
 
-namespace Compiler_CourseWorkLanguage
+namespace Envs
 {
 	public class BasicEnv: IEnvironment
 	{
@@ -12,7 +13,11 @@ namespace Compiler_CourseWorkLanguage
 		{
 			if (name == "number")
 				return typeof(float);
-			return typeof(object);
+			else if (name == "string")
+				return typeof(string);
+			else if (name == "object")
+				return typeof(object);
+			return null;
 		}
 	}
 }

@@ -8,6 +8,7 @@ using ICSharpCode.Decompiler.Ast;
 using System.Linq;
 using System.CodeDom;
 using Microsoft.CSharp;
+using Envs;
 
 namespace Compiler_CourseWorkLanguage
 {
@@ -96,7 +97,8 @@ namespace Compiler_CourseWorkLanguage
 			CodeNamespace pNamespace = new CodeNamespace("Scripts");
 			pNamespace.Types.Add(genClass);
 			pUnit.Namespaces.Add(pNamespace);
-
+			pUnit.ReferencedAssemblies.Add ("Compiler_CourseWorkLanguage.exe");
+			pNamespace.Imports.Add (new CodeNamespaceImport ("Envs"));
 			CompilerParameters pParams = new CompilerParameters ();
 			pParams.GenerateInMemory = true;
 

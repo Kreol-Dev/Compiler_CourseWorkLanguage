@@ -176,7 +176,19 @@ namespace Compiler_CourseWorkLanguage
 			from inheritDef in OfType.Optional()
 			from block in DefBlock
 			select new ClassDefinition(){Name = name, Inherit = inheritDef.GetOrElse("None"), Block = block};
-		
+
+		static readonly Parser<List<Definition>> ClassBlock =
+			from indent in Indent
+			from definitions in Parse.Ref(()=>DefClass).Many()
+			from dedent in Dedent
+			select new List<Definition>(definitions);
+		static readonly Parser<ProtectedDefinition> DefClass = 
+			(from priv in Parse.String ("private").Token ()
+				from def in Parse.Ref(()=>VarDef).Or (Parse.Ref(()=>FuncDef))
+				select new ProtectedDefinition (){ IsPublic = false, Definition = def })
+				.XOr (from def in Parse.Ref(()=>VarDef).Or (Parse.Ref(()=>FuncDef))
+					select new ProtectedDefinition (){ IsPublic = true, Definition = def });
+
 		static readonly Parser<Definition> FuncDef =
 			from name in Id.Token()
 			from lBrace in LBrace
@@ -417,12 +429,15 @@ namespace Compiler_CourseWorkLanguage
 			builder.Append (IDs [IDs.Count - 1]);
 			
 			if (CallArgs != null) {
+
+				builder.Append (" (");
 				if (!(CallArgs.Count == 1 && CallArgs [0] is Member && (CallArgs[0] as Member).IDs[0] == "void")) {
-					builder.Append (" (");
 					for (int i = 0; i < CallArgs.Count; i++)
-						builder.Append (CallArgs [i]).Append ("     ");
-					builder.Append (")");
+						builder.Append (CallArgs [i]).Append (",");
+					builder.Length = builder.Length - 1;
 				}
+
+				builder.Append (")");
 			}
 			return builder.ToString ();
 		}
@@ -509,9 +524,9 @@ namespace Compiler_CourseWorkLanguage
 			case ExprType.Mul:
 				return string.Format("{0} * {1}", LExpr, RExpr);
 			case ExprType.And:
-				return string.Format("{0} and {1}", LExpr, RExpr);
+				return string.Format("{0} && {1}", LExpr, RExpr);
 			case ExprType.Or:
-				return string.Format("{0} or {1}", LExpr, RExpr);			
+				return string.Format("{0} || {1}", LExpr, RExpr);			
 			case ExprType.Equal:
 				return string.Format("{0} == {1}", LExpr, RExpr);
 			}
