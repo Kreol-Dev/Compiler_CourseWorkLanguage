@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.CodeDom.Compiler;
 using System.CodeDom;
-
+using System.Reflection;
 namespace Compiler_CourseWorkLanguage
 {
 
@@ -26,6 +26,7 @@ namespace Compiler_CourseWorkLanguage
 		public CodeTypeDeclaration Define(List<Definition> defines)
 		{
 			Generate (defines, envFilled, null);
+
 			return envFilled;
 		}
 
@@ -138,7 +139,8 @@ namespace Compiler_CourseWorkLanguage
 						snippet = type.ToString () + " " + snippet;
 					else
 						snippet = varDef.Type + "_ " + snippet;
-				}
+				}else if (stmt is Member)
+					snippet = snippet + ";";
 				var codeStatement = new CodeSnippetStatement (snippet);
 
 				method.Statements.Add (codeStatement);
@@ -160,7 +162,8 @@ namespace Compiler_CourseWorkLanguage
 					var varDef = stmt as VarDefinition;
 					Type type = FindType (varDef.Type);
 					snippet = type.ToString () + " " + snippet;
-				}
+				} else if (stmt is Member)
+					snippet = snippet + ";";
 				var codeStatement = new CodeSnippetStatement (snippet);
 
 				method.Statements.Add (codeStatement);

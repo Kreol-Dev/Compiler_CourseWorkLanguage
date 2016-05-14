@@ -9,15 +9,20 @@ using System.Linq;
 using System.CodeDom;
 using Microsoft.CSharp;
 using Envs;
+using System.Reflection;
 
 namespace Compiler_CourseWorkLanguage
 {
 	class MainClass
 	{
+		
 		public static void Main (string[] args)
 		{
 			var lines = File.ReadLines ("example.cwl");
 			Stack<int> tabs = new Stack<int> ();
+
+
+
 
 			tabs.Push (0);
 			List<string> tokens = new List<string> ();
@@ -89,7 +94,8 @@ namespace Compiler_CourseWorkLanguage
 				ShowDef (e);
 			}
 
-			DomGenerator gen = new DomGenerator (new BasicEnv());
+			var env = new BasicEnv ();
+			DomGenerator gen = new DomGenerator (env);
 			var genClass = gen.Define (list);
 			CodeCompileUnit pUnit = new CodeCompileUnit();
 //			foreach(string sUsing in typeof(BasicEnv)) pNamespace.Imports.Add(new
@@ -108,11 +114,32 @@ namespace Compiler_CourseWorkLanguage
 			sourcegen.GenerateCodeFromCompileUnit (pUnit, writer, new CodeGeneratorOptions ());
 			CompilerResults results = provider.CompileAssemblyFromDom (pParams, pUnit);
 
+
 			if (results.Errors != null && results.Errors.Count > 0) {
 				foreach ( var err in results.Errors)
 					Console.WriteLine("Error: " + err);
-			
+
 			}
+
+			var filledEnvType = results.CompiledAssembly.GetType (pNamespace.Name + "." + genClass.Name);
+			Dictionary<string, FieldInfo> callbacks = new Dictionary<string, FieldInfo> ();
+			BasicEnv filledEnv = Activator.CreateInstance(filledEnvType) as BasicEnv;
+			foreach (var field in filledEnvType.GetFields()) {
+				if (field.Name.EndsWith ("Callback")) {
+					callbacks.Add (field.Name.Substring(0, field.Name.Length - 8), field);
+				}
+			}
+			foreach (var member in filledEnvType.GetMethods()) {
+				FieldInfo callback = null;
+				if (callbacks.TryGetValue (member.Name, out callback)) {
+					callback.SetValue (filledEnv, Delegate.CreateDelegate(callback.FieldType, filledEnv, member));
+				}
+			}
+
+			filledEnv.TestCallback (2);
+
+					
+
 
 			Console.ReadLine ();
 		}
