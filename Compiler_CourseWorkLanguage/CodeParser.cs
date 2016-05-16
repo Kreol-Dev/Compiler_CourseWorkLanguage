@@ -189,22 +189,42 @@ namespace Compiler_CourseWorkLanguage
 				.XOr (from def in Parse.Ref(()=>VarDef).Or (Parse.Ref(()=>FuncDef))
 					select new ProtectedDefinition (){ IsPublic = true, Definition = def });
 
+//		static readonly Parser<Definition> FuncDef =
+//			from name in Id.Token()
+//			from lBrace in LBrace
+//			//from args in Parse.Ref(() => ArgsDef)
+//			from args in VarDef.Select( d => d as VarDefinition).Many().Optional()
+//			from rBrace in RBrace
+//			from type in OfType.Optional()
+//			from block in FuncBlock
+//			select new FuncDefinition(){
+//			ReturnType = type.GetOrElse(null), 
+//			Name = name, Args = new List<VarDefinition>(args.GetOrElse(new List<VarDefinition>())), Block = block
+//		};
+
 		static readonly Parser<Definition> FuncDef =
 			from name in Id.Token()
 			from lBrace in LBrace
-			from paramsList in VarDef.Select( d => d as VarDefinition).Many().Optional()
+			from args in Parse.Ref(() => ArgsDef)
+			//from args in VarDef.Select( d => d as VarDefinition).Many().Optional()
 			from rBrace in RBrace
 			from type in OfType.Optional()
 			from block in FuncBlock
 			select new FuncDefinition(){
 			ReturnType = type.GetOrElse(null), 
-			Name = name, Args = new List<VarDefinition>(paramsList.GetOrElse(new List<VarDefinition>())),
-			Block = block
+			Name = name, Args = args, Block = block
 		};
-//		static readonly Parser<Expression> VarAssign = 
-//			from member in MemberID
-//			from expr in AssignOp
-//			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
+
+//		static readonly Parser<List<VarDefinition>> ArgsDef =
+//			/*(from v in Parse.String("void") select new List<VarDefinition>()).Or(*/from paramsList in Parse.Ref(() =>VarDef).Select( d => d as VarDefinition).Many() select new List<VarDefinition>(paramsList);//);
+
+		static readonly Parser<List<VarDefinition>> ArgsDef =
+			(from v in Parse.String("void") select new List<VarDefinition>()).Or(from paramsList in Parse.Ref(() =>VarDef).Select( d => d as VarDefinition).Many() select new List<VarDefinition>(paramsList));
+		
+		static readonly Parser<Expression> VarAssign = 
+			from member in MemberID
+			from expr in AssignOp
+			select new VarAssignExpression (){ Member = member as Member, DefaultExpression = expr };
 		
 		static readonly Parser<List<Statement>> FuncBlock = 
 			from indent in Indent
@@ -591,7 +611,7 @@ namespace Compiler_CourseWorkLanguage
 		public string Value;
 		public override string ToString ()
 		{
-			return Value;
+			return "\"" + Value + "\"";
 		}
 
 	

@@ -8,14 +8,11 @@ using System.Reflection;
 namespace Compiler_CourseWorkLanguage
 {
 
-	public interface IEnvironment
-	{
-		Type GetType(string name);
-	}
+
 	public class DomGenerator
 	{
 		IEnvironment env;
-		CodeTypeDeclaration envFilled;
+		public CodeTypeDeclaration envFilled;
 		public DomGenerator (IEnvironment environment)
 		{
 			env = environment;
@@ -144,7 +141,7 @@ namespace Compiler_CourseWorkLanguage
 				var codeStatement = new CodeSnippetStatement (snippet);
 
 				method.Statements.Add (codeStatement);
-				Console.WriteLine ("SNIPPET " + snippet);
+				//Console.WriteLine ("SNIPPET " + snippet);
 			}
 		}
 		void GenerateCtor(CodeConstructor method, CodeMemberMethod hostFunction, FuncDefinition def)
@@ -167,7 +164,7 @@ namespace Compiler_CourseWorkLanguage
 				var codeStatement = new CodeSnippetStatement (snippet);
 
 				method.Statements.Add (codeStatement);
-				Console.WriteLine ("SNIPPET " + snippet);
+				//Console.WriteLine ("SNIPPET " + snippet);
 			}
 		}
 		void GenerateVariable(CodeMemberField field, VarDefinition def)
